@@ -94,6 +94,52 @@ fun main() {
 [Notification] キャンセル通知を送信: 注文=ORD-001, 理由=顧客都合
 ```
 
+## KafkaEventBus — 実インフラへの差し替え
+
+`EventBus` インターフェースのおかげで、Publisher/Subscriber のコードを一切変えずに Kafka に差し替えられる。
+
+```kotlin
+// SimpleEventBus → KafkaEventBus に変えるだけ
+val bus = KafkaEventBus()  // localhost:9092 に接続
+
+// 以下はまったく同じコード
+InventorySubscriber(bus)
+NotificationSubscriber(bus)
+AnalyticsSubscriber(bus)
+```
+
+### SimpleEventBus との違い
+
+| 観点 | SimpleEventBus | KafkaEventBus |
+|---|---|---|
+| イベントの保存 | メモリのみ。プロセス終了で消失 | Kafkaが永続化。再読み取り可能 |
+| シリアライズ | 不要（同一JVM内のオブジェクト参照） | JSON に変換（Jackson） |
+| ルーティング | `KClass` で型マッチ | Kafkaトピック名（= クラス名）でマッチ |
+| スケーラビリティ | 1プロセス限定 | Consumer Group で複数プロセスに分散可能 |
+| 購読者の受信モデル | 同期（publishの中で即座にhandlerが呼ばれる） | 非同期（バックグラウンドスレッドでpoll） |
+| 追加依存 | なし | kafka-clients, Jackson, Docker |
+
+### KafkaEventBus で新たに必要になるもの
+
+1. **シリアライズ**: イベントをネットワーク越しに送るため JSON 変換が必要（Jackson で対応）
+2. **トピック**: `KClass.simpleName` をトピック名にマッピング（例: `OrderPlaced` → トピック `OrderPlaced`）
+3. **Consumer Group**: 購読者ごとにランダムなグループIDを割り当て、全員が全メッセージを受信（ファンアウト）
+4. **バックグラウンドスレッド**: 各コンシューマが `poll()` ループで非同期にメッセージを受信
+5. **Docker**: Kafka ブローカーの起動に `docker compose up -d` が必要
+
+### 実行方法
+
+```bash
+# Kafka を起動
+docker compose up -d
+
+# Kafka版デモ
+./gradlew :broker:run -PmainClass=eventdriven.broker.KafkaMainKt
+
+# 終了後
+docker compose down
+```
+
 ## ポイント
 
 1. **疎結合**: `OrderPublisher` は `InventorySubscriber` などの存在を知らない
