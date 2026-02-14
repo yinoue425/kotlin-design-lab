@@ -1,18 +1,18 @@
 package eventdriven.worker.queue
 
 import eventdriven.worker.task.Task
-import java.util.concurrent.LinkedBlockingQueue
+import kotlinx.coroutines.channels.Channel
 
-class InMemoryTaskQueue<T : Task> : TaskQueue<T> {
-    private val queue = LinkedBlockingQueue<T>()
+class InMemoryTaskQueue<T : Task>(capacity: Int = Channel.UNLIMITED) : TaskQueue<T> {
+    private val channel = Channel<T>(capacity)
 
-    override fun submit(task: T) {
-        queue.put(task)
+    override suspend fun submit(task: T) {
+        channel.send(task)
     }
 
-    override fun take(): T = queue.take()
+    override suspend fun take(): T = channel.receive()
 
     override fun shutdown() {
-        queue.clear()
+        channel.close()
     }
 }

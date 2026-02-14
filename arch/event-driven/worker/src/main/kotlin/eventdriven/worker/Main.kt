@@ -4,8 +4,10 @@ import eventdriven.worker.queue.InMemoryTaskQueue
 import eventdriven.worker.task.OrderTask
 import eventdriven.worker.worker.OrderWorker
 import eventdriven.worker.worker.WorkerPool
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 
-fun main() {
+fun main() = runBlocking {
     val queue = InMemoryTaskQueue<OrderTask>()
 
     // ワーカー3台を起動
@@ -15,7 +17,7 @@ fun main() {
         OrderWorker("Worker-3"),
     )
     val pool = WorkerPool(queue, workers)
-    pool.start()
+    pool.start(this)
 
     // 注文5件をキューに投入
     val orders = listOf(
@@ -35,7 +37,7 @@ fun main() {
     }
 
     // 全タスクの処理完了を待つ
-    Thread.sleep(3_000)
+    delay(3_000)
 
     pool.shutdown()
 

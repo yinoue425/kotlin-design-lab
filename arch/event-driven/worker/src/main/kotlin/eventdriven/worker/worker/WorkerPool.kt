@@ -2,33 +2,31 @@ package eventdriven.worker.worker
 
 import eventdriven.worker.queue.TaskQueue
 import eventdriven.worker.task.Task
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 
 class WorkerPool<T : Task>(
     private val queue: TaskQueue<T>,
     private val workers: List<Worker<T>>,
 ) {
-    private val threads = mutableListOf<Thread>()
+    private val jobs = mutableListOf<Job>()
 
-    fun start() {
+    fun start(scope: CoroutineScope) {
         for (worker in workers) {
-            val thread = Thread({
-                try {
-                    while (!Thread.currentThread().isInterrupted) {
-                        val task = queue.take()
-                        worker.process(task)
-                    }
-                } catch (_: InterruptedException) {
-                    // シャットダウン時の正常終了
+            val job = scope.launch {
+                while (true) {
+                    val task = queue.take()
+                    worker.process(task)
                 }
-            }, worker.name)
-            thread.start()
-            threads.add(thread)
+            }
+            jobs.add(job)
         }
     }
 
-    fun shutdown() {
-        threads.forEach { it.interrupt() }
-        threads.forEach { it.join() }
+    suspend fun shutdown() {
+        jobs.forEach { it.cancelAndJoin() }
         queue.shutdown()
     }
 }

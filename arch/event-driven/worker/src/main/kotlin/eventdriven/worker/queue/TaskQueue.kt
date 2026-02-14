@@ -3,7 +3,7 @@ package eventdriven.worker.queue
 import eventdriven.worker.task.Task
 
 interface TaskQueue<T : Task> {
-    fun submit(task: T)
-    fun take(): T
+    suspend fun submit(task: T)
+    suspend fun take(): T
     fun shutdown()
 }
